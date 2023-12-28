@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         .await?
         .await?;
 
-    info!("Sended json: {json}");
+    info!("Sent json: {json}");
 
     Ok(())
 }
