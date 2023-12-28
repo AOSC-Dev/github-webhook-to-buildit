@@ -1,3 +1,5 @@
+use std::{path::PathBuf, fs};
+
 use clap::Parser;
 use eyre::Result;
 use lapin::{options::BasicPublishOptions, BasicProperties, ConnectionProperties};
@@ -12,7 +14,7 @@ struct Args {
     amqp_addr: String,
 
     #[arg(short, long)]
-    json: String,
+    json: PathBuf,
 }
 
 #[tokio::main]
@@ -31,21 +33,22 @@ async fn main() -> Result<()> {
     }
 
     let conn = lapin::Connection::connect(&amqp_addr, ConnectionProperties::default()).await?;
-
     let channel = conn.create_channel().await?;
+
+    let file = fs::read_to_string(json)?;
 
     channel
         .basic_publish(
             "",
             "github-webhooks",
             BasicPublishOptions::default(),
-            json.as_bytes(),
+            file.as_bytes(),
             BasicProperties::default(),
         )
         .await?
         .await?;
 
-    info!("Sent json: {json}");
+    info!("Sent json: {file}");
 
     Ok(())
 }
