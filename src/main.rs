@@ -1,8 +1,12 @@
-use std::{path::PathBuf, fs};
+use std::{fs, path::PathBuf};
 
 use clap::Parser;
 use eyre::Result;
-use lapin::{options::BasicPublishOptions, BasicProperties, ConnectionProperties};
+use lapin::{
+    options::{BasicPublishOptions, QueueDeclareOptions},
+    types::{AMQPValue, FieldTable},
+    BasicProperties, Channel, ConnectionProperties, Queue,
+};
 use tracing::info;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
@@ -37,6 +41,8 @@ async fn main() -> Result<()> {
 
     let file = fs::read_to_string(json)?;
 
+    ensure_job_queue("github-webhooks", &channel).await?;
+
     channel
         .basic_publish(
             "",
@@ -51,4 +57,23 @@ async fn main() -> Result<()> {
     info!("Sent json: {file}");
 
     Ok(())
+}
+
+pub async fn ensure_job_queue(queue_name: &str, channel: &Channel) -> Result<Queue> {
+    let mut arguments = FieldTable::default();
+    // extend consumer timeout because we may have long running tasks
+    arguments.insert(
+        "x-consumer-timeout".into(),
+        AMQPValue::LongInt(24 * 3600 * 1000),
+    );
+    Ok(channel
+        .queue_declare(
+            queue_name,
+            QueueDeclareOptions {
+                durable: true,
+                ..QueueDeclareOptions::default()
+            },
+            arguments,
+        )
+        .await?)
 }
